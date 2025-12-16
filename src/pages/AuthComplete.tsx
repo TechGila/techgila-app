@@ -45,6 +45,43 @@ export default function AuthComplete() {
 
         // Try fetching the current user, retry once after a short delay if it fails.
         let me = await getCurrentUser();
+
+        // If unauthenticated, attempt an explicit fetch to debug whether the
+        // Authorization header with the token is being accepted by the backend.
+        if (me.status === "error" && me.code === 401) {
+          try {
+            // Show partial token in console for debugging (not full token)
+            const shortToken = token.slice(0, 10) + "...";
+            console.debug(
+              "AuthComplete: token set, attempting manual /user fetch with token:",
+              shortToken
+            );
+
+            const raw = await fetch("https://api.techgila.com/user", {
+              method: "GET",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              credentials: "omit",
+            });
+
+            let rawBody: any = null;
+            try {
+              rawBody = await raw.json();
+            } catch (e) {
+              rawBody = await raw.text();
+            }
+            console.debug(
+              "AuthComplete: manual /user fetch result",
+              raw.status,
+              rawBody
+            );
+          } catch (e) {
+            console.debug("AuthComplete: manual fetch error", e);
+          }
+        }
         if (me.status !== "success" || !me.data?.user) {
           // wait briefly, backend might still finalize session
           await new Promise((r) => setTimeout(r, 500));
