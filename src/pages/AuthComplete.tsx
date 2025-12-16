@@ -4,7 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCurrentUser, removeAuthToken, setAuthToken } from "@/lib/api";
+import {
+  getCurrentUser,
+  removeAuthToken,
+  setAuthToken,
+  type ApiResponse,
+} from "@/lib/api";
 
 export default function AuthComplete() {
   const [searchParams] = useSearchParams();
@@ -38,11 +43,32 @@ export default function AuthComplete() {
         // Set token first so /user is authenticated.
         setAuthToken(token);
 
-        const me = await getCurrentUser();
+        // Try fetching the current user, retry once after a short delay if it fails.
+        let me = await getCurrentUser();
+        if (me.status !== "success" || !me.data?.user) {
+          // wait briefly, backend might still finalize session
+          await new Promise((r) => setTimeout(r, 500));
+          me = await getCurrentUser();
+        }
+
         const user = me.data?.user;
 
         if (me.status !== "success" || !user) {
-          throw new Error(me.message || "Unable to load user profile");
+          // Log the full response to console for debugging
+          console.error("AuthComplete: getCurrentUser failed", me);
+          removeAuthToken();
+          let desc = "Unable to load user profile";
+          if (me && typeof me === "object" && "message" in me) {
+            const m = me as ApiResponse;
+            desc = `${m.message} (code: ${m.code ?? "?"})`;
+          }
+          toast({
+            variant: "destructive",
+            title: "Authentication failed",
+            description: desc,
+          });
+          navigate("/auth", { replace: true });
+          return;
         }
 
         login(token, user);
@@ -54,6 +80,7 @@ export default function AuthComplete() {
 
         navigate("/dashboard", { replace: true });
       } catch (err) {
+        console.error("AuthComplete: unexpected error", err);
         removeAuthToken();
         toast({
           variant: "destructive",
