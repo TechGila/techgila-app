@@ -6,6 +6,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (token: string, user: User) => void;
+  completeOAuthLogin: (token: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (user: User) => void;
   refreshUser: () => Promise<void>;
@@ -50,6 +51,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(userData);
   }, []);
 
+  const completeOAuthLogin = useCallback(async (token: string) => {
+    setIsLoading(true);
+    setAuthToken(token);
+
+    try {
+      const response = await getCurrentUser();
+      if (response.status === "success" && response.data?.user) {
+        setUser(response.data.user);
+        return true;
+      }
+
+      removeAuthToken();
+      setUser(null);
+      return false;
+    } catch {
+      removeAuthToken();
+      setUser(null);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     removeAuthToken();
     setUser(null);
@@ -66,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        completeOAuthLogin,
         logout,
         updateUser,
         refreshUser,

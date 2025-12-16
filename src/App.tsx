@@ -26,11 +26,11 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path='/' element={<Navigate to='/auth' replace />} />
-            <Route path='/auth' element={<Auth />} />
-            <Route path='/auth/complete' element={<AuthComplete />} />
+            <Route path="/" element={<Navigate to="/auth" replace />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/complete" element={<AuthComplete />} />
             <Route
-              path='/dashboard'
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <DashboardLayout />
@@ -38,13 +38,13 @@ const App = () => (
               }
             >
               <Route index element={<Overview />} />
-              <Route path='build-queue' element={<BuildQueue />} />
-              <Route path='test-results' element={<TestResults />} />
-              <Route path='ai-insights' element={<AIInsights />} />
-              <Route path='settings' element={<Settings />} />
-              <Route path='billing' element={<Billing />} />
+              <Route path="build-queue" element={<BuildQueue />} />
+              <Route path="test-results" element={<TestResults />} />
+              <Route path="ai-insights" element={<AIInsights />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="billing" element={<Billing />} />
             </Route>
-            <Route path='*' element={<NotFound />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
