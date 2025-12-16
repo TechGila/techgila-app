@@ -1,5 +1,40 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { User, getCurrentUser, setAuthToken, getAuthToken, removeAuthToken } from "@/lib/api";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import {
+  User,
+  getCurrentUser,
+  setAuthToken,
+  getAuthToken,
+  removeAuthToken,
+} from "@/lib/api";
+
+function extractUserFromCurrentUserResponse(response: unknown): User | null {
+  if (!response || typeof response !== "object") return null;
+  const res = response as Record<string, unknown>;
+
+  const data = res.data;
+  const userCandidate =
+    (data &&
+      typeof data === "object" &&
+      (data as Record<string, unknown>).user) ||
+    data ||
+    res.user;
+
+  if (!userCandidate || typeof userCandidate !== "object") return null;
+  const u = userCandidate as Record<string, unknown>;
+  if (typeof u.id !== "number") return null;
+  if (typeof u.email !== "string") return null;
+  if (typeof u.username !== "string") return null;
+  if (typeof u.first_name !== "string") return null;
+  if (typeof u.last_name !== "string") return null;
+
+  return u as unknown as User;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -28,8 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const response = await getCurrentUser();
-      if (response.status === "success" && response.data?.user) {
-        setUser(response.data.user);
+      const extractedUser = extractUserFromCurrentUserResponse(response);
+      if (response.status === "success" && extractedUser) {
+        setUser(extractedUser);
       } else {
         removeAuthToken();
         setUser(null);
@@ -57,8 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const response = await getCurrentUser();
-      if (response.status === "success" && response.data?.user) {
-        setUser(response.data.user);
+      const extractedUser = extractUserFromCurrentUserResponse(response);
+      if (response.status === "success" && extractedUser) {
+        setUser(extractedUser);
         return true;
       }
 

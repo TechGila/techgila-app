@@ -274,6 +274,39 @@ export async function createSubscriptionPlan(
   });
 }
 
+// Low-level create helper returns raw HTTP status and body for debugging.
+export async function createSubscriptionPlanRaw(
+  plan: Omit<SubscriptionPlan, "id">
+): Promise<{ ok: boolean; status: number; body: any }> {
+  const token = getAuthToken();
+  try {
+    const res = await fetch(`${API_BASE_URL}/subscription-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(plan),
+    });
+
+    let body: any = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = await res.text();
+    }
+
+    return { ok: res.ok, status: res.status, body };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      body: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // AI endpoints
 export interface AIGenerateResult {
   result: string;

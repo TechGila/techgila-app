@@ -70,6 +70,12 @@ export default function Auth() {
 
       if (response.status === "success" && response.data) {
         login(response.data.token, response.data.user);
+        // Ensure subscription plans exist on the backend; non-blocking
+        try {
+          await ensureDefaultPlansAvailable();
+        } catch (err) {
+          console.warn("Plan seeding check failed on sign-in:", err);
+        }
         toast({
           title: "Welcome back!",
           description: "You have successfully signed in.",
@@ -92,6 +98,83 @@ export default function Auth() {
       setIsLoading(false);
     }
   };
+
+  async function ensureDefaultPlansAvailable() {
+    try {
+      const plansResponse = await getSubscriptionPlans();
+      const availablePlans = normalizePlans(
+        plansResponse.data ?? plansResponse
+      );
+
+      if (availablePlans.length > 0) {
+        return { seeded: false, reason: "plans_exist", plans: availablePlans };
+      }
+
+      // Try to create demo plans (best-effort)
+      const created: string[] = [];
+      const failed: Array<{ slug: string; error: unknown }> = [];
+
+      for (const p of DEMO_SUBSCRIPTION_PLANS) {
+        try {
+          const raw = await createSubscriptionPlanRaw({
+            name: p.name,
+            slug: p.slug,
+            description: p.description,
+            price: p.price,
+            currency: p.currency,
+            interval: p.interval,
+            trial_days: p.trial_days,
+            features: p.features,
+            is_active: p.is_active,
+          });
+
+          if (raw.ok) {
+            created.push(p.slug);
+          } else {
+            failed.push({
+              slug: p.slug,
+              error: { status: raw.status, body: raw.body },
+            });
+            console.warn(
+              `Plan creation failed for ${p.slug}:`,
+              raw.status,
+              raw.body
+            );
+          }
+        } catch (err) {
+          failed.push({ slug: p.slug, error: err });
+        }
+      }
+
+      if (created.length > 0) {
+        toast({
+          title: "Subscription plans seeded",
+          description: `Created plans: ${created.join(", ")}`,
+        });
+        return { seeded: true, created };
+      }
+
+      // If nothing could be created, provide a non-blocking notice
+      console.warn("Failed to seed subscription plans:", failed);
+      toast({
+        variant: "destructive",
+        title: "Subscription plans not created",
+        description:
+          "Could not create default subscription plans on the backend. Check server logs or permissions.",
+      });
+      return { seeded: false, reason: "creation_failed", failed };
+    } catch (err) {
+      console.error("Error checking/creating subscription plans:", err);
+      // Non-fatal; just notify
+      toast({
+        variant: "destructive",
+        title: "Plans check failed",
+        description:
+          "Could not verify or create subscription plans. Please try again later.",
+      });
+      throw err;
+    }
+  }
 
   const handleGoogleAuth = () => {
     window.location.href = `${API_BASE_URL}/auth/google/redirect`;
@@ -137,62 +220,14 @@ export default function Auth() {
         // Persist token first so authenticated calls (like /subscriptions) work.
         login(response.data.token, response.data.user);
 
-        // Auto-detect available subscription plans; if none exist, best-effort seed
-        // the default plan from DEMO_SUBSCRIPTION_PLANS, then assign a plan.
+        // Persist token first so authenticated calls (like /subscriptions) work.
+        login(response.data.token, response.data.user);
+
+        // Ensure subscription plans exist on the backend; non-blocking
         try {
-          const plansResponse = await getSubscriptionPlans();
-          let availablePlans = normalizePlans(plansResponse.data);
-
-          if (plansResponse.status === "success") {
-            const direct = normalizePlans(plansResponse.data?.plans);
-            if (direct.length > 0) availablePlans = direct;
-          }
-
-          if (availablePlans.length === 0) {
-            const defaultPlan = DEMO_SUBSCRIPTION_PLANS.find(
-              (p) => p.slug === DEFAULT_PLAN_SLUG
-            );
-
-            if (defaultPlan) {
-              await createSubscriptionPlan({
-                name: defaultPlan.name,
-                slug: defaultPlan.slug,
-                description: defaultPlan.description,
-                price: defaultPlan.price,
-                currency: defaultPlan.currency,
-                interval: defaultPlan.interval,
-                trial_days: defaultPlan.trial_days,
-                features: defaultPlan.features,
-                is_active: defaultPlan.is_active,
-              });
-            }
-
-            const refetch = await getSubscriptionPlans();
-            const refetchedPlans = normalizePlans(
-              refetch.data?.plans ?? refetch.data
-            );
-            if (refetch.status === "success" && refetchedPlans.length > 0) {
-              availablePlans = refetchedPlans;
-            }
-          }
-
-          const hasDefault = availablePlans.some(
-            (p) => p.slug === DEFAULT_PLAN_SLUG
-          );
-          const planSlugToAssign = hasDefault
-            ? DEFAULT_PLAN_SLUG
-            : availablePlans[0]?.slug ?? DEFAULT_PLAN_SLUG;
-
-          await subscribeToplan(planSlugToAssign, {
-            card_number: "4242424242424242",
-            expiry_month: "12",
-            expiry_year: "30",
-            cvv: "123",
-            card_holder: `${signUpFirstName} ${signUpLastName}`.trim(),
-          });
-        } catch {
-          // Plan assignment is non-blocking (user can still proceed).
-          console.log("Plan auto-assignment skipped");
+          await ensureDefaultPlansAvailable();
+        } catch (err) {
+          console.warn("Plan seeding check failed on sign-up:", err);
         }
 
         toast({
