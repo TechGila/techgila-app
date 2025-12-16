@@ -259,6 +259,21 @@ export async function subscribeToplan(
   });
 }
 
+export async function getSubscriptionPlans(): Promise<
+  ApiResponse<{ plans: SubscriptionPlan[] }>
+> {
+  return apiFetch<{ plans: SubscriptionPlan[] }>("/subscription-plans");
+}
+
+export async function createSubscriptionPlan(
+  plan: Omit<SubscriptionPlan, "id">
+): Promise<ApiResponse<{ plan: SubscriptionPlan }>> {
+  return apiFetch<{ plan: SubscriptionPlan }>("/subscription-plans", {
+    method: "POST",
+    body: JSON.stringify(plan),
+  });
+}
+
 // AI endpoints
 export interface AIGenerateResult {
   result: string;
