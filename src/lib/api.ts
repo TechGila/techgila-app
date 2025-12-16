@@ -76,6 +76,9 @@ async function apiFetch<T>(
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      // Ensure cookies set by the backend (e.g., redirect-based OAuth flows)
+      // are included on cross-origin requests when the backend uses cookie auth.
+      credentials: "include",
       headers,
     });
 
@@ -163,6 +166,7 @@ export async function uploadAvatar(
         Authorization: `Bearer ${token}`,
       },
       body: formData,
+      credentials: "include",
     });
     return await response.json();
   } catch (error) {

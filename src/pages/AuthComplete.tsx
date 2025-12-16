@@ -64,10 +64,11 @@ export default function AuthComplete() {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
               },
-              credentials: "omit",
+              // include cookies that may have been set by the backend during the OAuth redirect
+              credentials: "include",
             });
 
-            let rawBody: any = null;
+            let rawBody: unknown = null;
             try {
               rawBody = await raw.json();
             } catch (e) {
