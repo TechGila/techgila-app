@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -24,17 +30,20 @@ import {
   Pause,
   RotateCcw,
   Search,
-  ArrowUpDown,
   Clock,
   GitBranch,
   User,
   ChevronUp,
   ChevronDown,
   Sparkles,
+  Trash2,
+  GripVertical,
+  AlertCircle,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // Demo queue data
-const queueData = [
+const initialQueueData = [
   {
     id: "Q-001",
     branch: "feature/user-authentication",
@@ -107,27 +116,83 @@ const queueData = [
     changes: 34,
     triggeredAt: "32 min ago",
   },
+  {
+    id: "Q-007",
+    branch: "fix/mobile-layout",
+    author: "Taylor Reed",
+    priority: "low",
+    aiScore: 38,
+    estimatedTime: "2m 45s",
+    position: 7,
+    tests: 45,
+    changes: 15,
+    triggeredAt: "45 min ago",
+  },
+  {
+    id: "Q-008",
+    branch: "feature/export-csv",
+    author: "Morgan Lee",
+    priority: "medium",
+    aiScore: 71,
+    estimatedTime: "3m 05s",
+    position: 8,
+    tests: 98,
+    changes: 22,
+    triggeredAt: "52 min ago",
+  },
 ];
 
 export default function BuildQueue() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [isPaused, setIsPaused] = useState(false);
+  const [queueData, setQueueData] = useState(initialQueueData);
+  const [isReprioritizing, setIsReprioritizing] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [currentlyRunning, setCurrentlyRunning] = useState<string | null>(null);
+
+  // Simulate running build progress
+  useEffect(() => {
+    if (isPaused || queueData.length === 0) return;
+
+    const runNextBuild = () => {
+      if (queueData.length > 0 && !currentlyRunning) {
+        const nextBuild = queueData[0];
+        setCurrentlyRunning(nextBuild.id);
+
+        // Simulate build completion
+        setTimeout(() => {
+          setQueueData((prev) =>
+            prev.filter((item) => item.id !== nextBuild.id)
+          );
+          setCurrentlyRunning(null);
+          toast({
+            title: "Build completed",
+            description: `${nextBuild.branch} finished successfully.`,
+          });
+        }, 5000);
+      }
+    };
+
+    const interval = setInterval(runNextBuild, 8000);
+    return () => clearInterval(interval);
+  }, [isPaused, queueData, currentlyRunning, toast]);
 
   const getPriorityBadge = (priority: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       critical: "bg-destructive/20 text-destructive border-destructive/30",
-      high: "bg-secondary/20 text-secondary border-secondary/30",
+      high: "bg-orange-500/20 text-orange-500 border-orange-500/30",
       medium: "bg-primary/20 text-primary border-primary/30",
       low: "bg-muted text-muted-foreground border-border",
     };
-    return styles[priority as keyof typeof styles] || styles.low;
+    return styles[priority] || styles.low;
   };
 
   const getAIScoreColor = (score: number) => {
     if (score >= 90) return "text-green-500";
     if (score >= 70) return "text-primary";
-    if (score >= 50) return "text-secondary";
+    if (score >= 50) return "text-orange-500";
     return "text-muted-foreground";
   };
 
@@ -135,60 +200,168 @@ export default function BuildQueue() {
     const matchesSearch =
       item.branch.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.author.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPriority = priorityFilter === "all" || item.priority === priorityFilter;
+    const matchesPriority =
+      priorityFilter === "all" || item.priority === priorityFilter;
     return matchesSearch && matchesPriority;
   });
 
+  const handleTogglePause = () => {
+    setIsPaused(!isPaused);
+    toast({
+      title: isPaused ? "Queue resumed" : "Queue paused",
+      description: isPaused
+        ? "Builds will continue processing."
+        : "No new builds will start until resumed.",
+    });
+  };
+
+  const handleReprioritize = () => {
+    setIsReprioritizing(true);
+    setTimeout(() => {
+      const reshuffled = [...queueData].sort((a, b) => b.aiScore - a.aiScore);
+      setQueueData(
+        reshuffled.map((item, index) => ({ ...item, position: index + 1 }))
+      );
+      setIsReprioritizing(false);
+      toast({
+        title: "Queue re-prioritized",
+        description: "AI has recalculated optimal build order.",
+      });
+    }, 1500);
+  };
+
+  const handleMoveUp = (id: string) => {
+    const index = queueData.findIndex((item) => item.id === id);
+    if (index <= 0) return;
+
+    const newData = [...queueData];
+    [newData[index - 1], newData[index]] = [newData[index], newData[index - 1]];
+    setQueueData(newData.map((item, i) => ({ ...item, position: i + 1 })));
+  };
+
+  const handleMoveDown = (id: string) => {
+    const index = queueData.findIndex((item) => item.id === id);
+    if (index >= queueData.length - 1) return;
+
+    const newData = [...queueData];
+    [newData[index], newData[index + 1]] = [newData[index + 1], newData[index]];
+    setQueueData(newData.map((item, i) => ({ ...item, position: i + 1 })));
+  };
+
+  const handleRemove = (id: string) => {
+    setQueueData((prev) => prev.filter((item) => item.id !== id));
+    toast({
+      title: "Build removed",
+      description: "The build has been removed from the queue.",
+      variant: "destructive",
+    });
+  };
+
+  const handleRunNow = (id: string) => {
+    const item = queueData.find((q) => q.id === id);
+    if (!item) return;
+
+    setCurrentlyRunning(id);
+    toast({
+      title: "Build started",
+      description: `${item.branch} is now running.`,
+    });
+
+    setTimeout(() => {
+      setQueueData((prev) => prev.filter((q) => q.id !== id));
+      setCurrentlyRunning(null);
+      toast({
+        title: "Build completed",
+        description: `${item.branch} finished successfully.`,
+      });
+    }, 3000);
+  };
+
+  const totalEstTime = queueData.reduce((acc, item) => {
+    const mins = parseInt(item.estimatedTime.split("m")[0]) || 0;
+    return acc + mins;
+  }, 0);
+
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Zap className="h-6 w-6 text-primary" />
+          <h1 className='text-2xl font-bold text-foreground flex items-center gap-2'>
+            <Zap className='h-6 w-6 text-primary' />
             AI-Prioritized Build Queue
           </h1>
-          <p className="text-muted-foreground">
+          <p className='text-muted-foreground'>
             Builds are automatically ordered by AI-calculated priority scores
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className='flex gap-2'>
           <Button
             variant={isPaused ? "default" : "outline"}
-            onClick={() => setIsPaused(!isPaused)}
+            onClick={handleTogglePause}
           >
             {isPaused ? (
               <>
-                <Play className="h-4 w-4 mr-2" />
+                <Play className='h-4 w-4 mr-2' />
                 Resume Queue
               </>
             ) : (
               <>
-                <Pause className="h-4 w-4 mr-2" />
+                <Pause className='h-4 w-4 mr-2' />
                 Pause Queue
               </>
             )}
           </Button>
-          <Button variant="outline">
-            <RotateCcw className="h-4 w-4 mr-2" />
+          <Button
+            variant='outline'
+            onClick={handleReprioritize}
+            disabled={isReprioritizing}
+          >
+            <RotateCcw
+              className={`h-4 w-4 mr-2 ${
+                isReprioritizing ? "animate-spin" : ""
+              }`}
+            />
             Re-prioritize
           </Button>
         </div>
       </div>
 
+      {/* Status Banner */}
+      {isPaused && (
+        <div className='bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 flex items-center gap-3'>
+          <AlertCircle className='h-5 w-5 text-orange-500' />
+          <div>
+            <p className='font-medium text-orange-500'>Queue is paused</p>
+            <p className='text-sm text-muted-foreground'>
+              New builds will not start until the queue is resumed.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* AI Explanation Card */}
-      <Card className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 border-primary/30">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-              <Sparkles className="h-5 w-5 text-primary" />
+      <Card className='bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 border-primary/30'>
+        <CardContent className='pt-6'>
+          <div className='flex items-start gap-4'>
+            <div className='w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0'>
+              <Sparkles className='h-5 w-5 text-primary' />
             </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-1">How AI Prioritization Works</h3>
-              <p className="text-sm text-muted-foreground">
-                Our AI analyzes multiple factors including code changes, test coverage, historical failure rates,
-                branch importance, and dependency impacts to calculate optimal build order. Critical hotfixes and
-                high-impact changes are automatically prioritized.
+            <div className='flex-1'>
+              <h3 className='font-semibold text-foreground mb-1'>
+                How AI Prioritization Works
+              </h3>
+              <p className='text-sm text-muted-foreground'>
+                Our AI analyzes code changes, test coverage, historical failure
+                rates, branch importance, and dependency impacts to calculate
+                optimal build order. Critical hotfixes and high-impact changes
+                are automatically prioritized.
+              </p>
+            </div>
+            <div className='text-right'>
+              <p className='text-sm text-muted-foreground'>Est. Total Time</p>
+              <p className='text-2xl font-bold text-foreground'>
+                ~{totalEstTime}m
               </p>
             </div>
           </div>
@@ -199,105 +372,175 @@ export default function BuildQueue() {
       <Card>
         <CardHeader>
           <CardTitle>Queue Management</CardTitle>
-          <CardDescription>{filteredQueue.length} builds in queue</CardDescription>
+          <CardDescription>
+            {filteredQueue.length} builds in queue
+            {currentlyRunning && " • 1 currently running"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className='flex flex-col sm:flex-row gap-4 mb-6'>
+            <div className='relative flex-1'>
+              <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
               <Input
-                placeholder="Search by branch or author..."
+                placeholder='Search by branch or author...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className='pl-10'
               />
             </div>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by priority" />
+              <SelectTrigger className='w-[180px]'>
+                <SelectValue placeholder='Filter by priority' />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value='all'>All Priorities</SelectItem>
+                <SelectItem value='critical'>Critical</SelectItem>
+                <SelectItem value='high'>High</SelectItem>
+                <SelectItem value='medium'>Medium</SelectItem>
+                <SelectItem value='low'>Low</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Queue Table */}
-          <div className="rounded-lg border border-border overflow-hidden">
+          <div className='rounded-lg border border-border overflow-hidden'>
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-16">#</TableHead>
+                <TableRow className='bg-muted/50'>
+                  <TableHead className='w-12'></TableHead>
+                  <TableHead className='w-16'>#</TableHead>
                   <TableHead>Branch</TableHead>
                   <TableHead>Author</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>
-                    <div className="flex items-center gap-1">
-                      <Sparkles className="h-4 w-4" />
+                    <div className='flex items-center gap-1'>
+                      <Sparkles className='h-4 w-4' />
                       AI Score
                     </div>
                   </TableHead>
                   <TableHead>Est. Time</TableHead>
                   <TableHead>Tests</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className='text-right'>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredQueue.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <span className="text-lg font-bold text-primary">{item.position}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <GitBranch className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium text-foreground">{item.branch}</p>
-                          <p className="text-xs text-muted-foreground">{item.triggeredAt}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-foreground">{item.author}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getPriorityBadge(item.priority)}>
-                        {item.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`font-semibold ${getAIScoreColor(item.aiScore)}`}>
-                        {item.aiScore}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        {item.estimatedTime}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-foreground">{item.tests}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </div>
+                {filteredQueue.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className='text-center py-8 text-muted-foreground'
+                    >
+                      No builds in queue matching your criteria.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredQueue.map((item) => (
+                    <TableRow
+                      key={item.id}
+                      className={`hover:bg-muted/30 ${
+                        currentlyRunning === item.id ? "bg-primary/10" : ""
+                      }`}
+                    >
+                      <TableCell>
+                        <GripVertical className='h-4 w-4 text-muted-foreground cursor-grab' />
+                      </TableCell>
+                      <TableCell>
+                        <span className='text-lg font-bold text-primary'>
+                          {item.position}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex items-center gap-2'>
+                          <GitBranch className='h-4 w-4 text-muted-foreground' />
+                          <div>
+                            <p className='font-medium text-foreground'>
+                              {item.branch}
+                            </p>
+                            <p className='text-xs text-muted-foreground'>
+                              {item.triggeredAt}
+                              {currentlyRunning === item.id && (
+                                <Badge className='ml-2 bg-primary/20 text-primary'>
+                                  Running
+                                </Badge>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex items-center gap-2'>
+                          <User className='h-4 w-4 text-muted-foreground' />
+                          <span className='text-foreground'>{item.author}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant='outline'
+                          className={getPriorityBadge(item.priority)}
+                        >
+                          {item.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`font-semibold ${getAIScoreColor(
+                            item.aiScore
+                          )}`}
+                        >
+                          {item.aiScore}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex items-center gap-1 text-muted-foreground'>
+                          <Clock className='h-4 w-4' />
+                          {item.estimatedTime}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className='text-foreground'>{item.tests}</span>
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <div className='flex items-center justify-end gap-1'>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-8 w-8'
+                            onClick={() => handleMoveUp(item.id)}
+                            disabled={item.position === 1}
+                          >
+                            <ChevronUp className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-8 w-8'
+                            onClick={() => handleMoveDown(item.id)}
+                            disabled={item.position === queueData.length}
+                          >
+                            <ChevronDown className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-8 w-8 text-green-500 hover:text-green-600'
+                            onClick={() => handleRunNow(item.id)}
+                            disabled={currentlyRunning !== null}
+                          >
+                            <Play className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-8 w-8 text-destructive hover:text-destructive'
+                            onClick={() => handleRemove(item.id)}
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

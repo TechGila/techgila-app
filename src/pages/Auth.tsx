@@ -42,6 +42,14 @@ function normalizePlans(value: unknown): SubscriptionPlan[] {
   return [];
 }
 
+function isSuccessResponse(res: unknown): res is { status: "success" } {
+  return (
+    !!res &&
+    typeof res === "object" &&
+    (res as Record<string, unknown>).status === "success"
+  );
+}
+
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("signin");
@@ -116,7 +124,7 @@ export default function Auth() {
 
       for (const p of DEMO_SUBSCRIPTION_PLANS) {
         try {
-          const raw = await createSubscriptionPlanRaw({
+          const res = await createSubscriptionPlan({
             name: p.name,
             slug: p.slug,
             description: p.description,
@@ -128,18 +136,15 @@ export default function Auth() {
             is_active: p.is_active,
           });
 
-          if (raw.ok) {
+          // API responses in this codebase use a `status` field; treat "success" as success.
+          if (isSuccessResponse(res)) {
             created.push(p.slug);
           } else {
             failed.push({
               slug: p.slug,
-              error: { status: raw.status, body: raw.body },
+              error: res,
             });
-            console.warn(
-              `Plan creation failed for ${p.slug}:`,
-              raw.status,
-              raw.body
-            );
+            console.warn(`Plan creation failed for ${p.slug}:`, res);
           }
         } catch (err) {
           failed.push({ slug: p.slug, error: err });

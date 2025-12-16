@@ -277,7 +277,7 @@ export async function createSubscriptionPlan(
 // Low-level create helper returns raw HTTP status and body for debugging.
 export async function createSubscriptionPlanRaw(
   plan: Omit<SubscriptionPlan, "id">
-): Promise<{ ok: boolean; status: number; body: any }> {
+): Promise<{ ok: boolean; status: number; body: unknown }> {
   const token = getAuthToken();
   try {
     const res = await fetch(`${API_BASE_URL}/subscription-plans`, {
@@ -290,7 +290,7 @@ export async function createSubscriptionPlanRaw(
       body: JSON.stringify(plan),
     });
 
-    let body: any = null;
+    let body: unknown = null;
     try {
       body = await res.json();
     } catch {
