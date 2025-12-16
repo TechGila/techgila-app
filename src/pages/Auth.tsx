@@ -5,6 +5,7 @@ import {
   login as apiLogin,
   register as apiRegister,
   subscribeToplan,
+  getOAuthRedirectUrl,
   getSubscriptionPlans,
   createSubscriptionPlan,
   type SubscriptionPlan,
@@ -26,6 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Zap, Shield, BarChart3, Loader2 } from "lucide-react";
+import { FaGoogle, FaGithub } from "react-icons/fa";
 import Logo from "@/components/Logo";
 
 function normalizePlans(value: unknown): SubscriptionPlan[] {
@@ -45,6 +47,11 @@ export default function Auth() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const handleOAuthRedirect = (provider: "google" | "github") => {
+    setIsLoading(true);
+    window.location.href = getOAuthRedirectUrl(provider);
+  };
 
   // Sign In form state
   const [signInEmail, setSignInEmail] = useState("");
@@ -338,6 +345,29 @@ export default function Auth() {
                         "Sign In"
                       )}
                     </Button>
+
+                    <div className='grid grid-cols-2 gap-3'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        disabled={isLoading}
+                        onClick={() => handleOAuthRedirect("google")}
+                        className='flex items-center justify-center'
+                      >
+                        <FaGoogle className='mr-2 h-4 w-4' />
+                        Continue with Google
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        disabled={isLoading}
+                        onClick={() => handleOAuthRedirect("github")}
+                        className='flex items-center justify-center'
+                      >
+                        <FaGithub className='mr-2 h-4 w-4' />
+                        Continue with GitHub
+                      </Button>
+                    </div>
                   </form>
                 </CardContent>
               </Card>
@@ -441,6 +471,30 @@ export default function Auth() {
                         "Create Account"
                       )}
                     </Button>
+
+                    <div className='grid grid-cols-2 gap-3'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        disabled={isLoading}
+                        onClick={() => handleOAuthRedirect("google")}
+                        className='flex items-center justify-center'
+                      >
+                        <FaGoogle className='mr-2 h-4 w-4' />
+                        Continue with Google
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        disabled={isLoading}
+                        onClick={() => handleOAuthRedirect("github")}
+                        className='flex items-center justify-center'
+                      >
+                        <FaGithub className='mr-2 h-4 w-4' />
+                        Continue with GitHub
+                      </Button>
+                    </div>
+
                     <p className='text-xs text-muted-foreground text-center'>
                       By signing up, you agree to our Terms of Service and
                       Privacy Policy.

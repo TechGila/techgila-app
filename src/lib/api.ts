@@ -1,6 +1,12 @@
 // API Configuration and utilities for TechGila
 const API_BASE_URL = "https://api.techgila.com";
 
+export type OAuthProvider = "google" | "github";
+
+export function getOAuthRedirectUrl(provider: OAuthProvider): string {
+  return `${API_BASE_URL}/auth/${provider}/redirect`;
+}
+
 // SHA-256 password hashing utility
 export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
