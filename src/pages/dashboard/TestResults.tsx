@@ -295,7 +295,7 @@ export default function TestResults() {
             Comprehensive test analytics and execution history
           </p>
         </div>
-        <div className='flex gap-2'>
+        <div className='flex flex-wrap justify-center gap-2'>
           <Button variant='outline' onClick={handleDownloadReport}>
             <Download className='h-4 w-4 mr-2' />
             Export
@@ -556,20 +556,52 @@ export default function TestResults() {
                 {filteredTests.length} tests displayed
               </CardDescription>
             </div>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value='all'>All ({totalTests})</TabsTrigger>
-                <TabsTrigger value='failed' className='text-destructive'>
-                  Failed ({statusCounts.failed})
-                </TabsTrigger>
-                <TabsTrigger value='flaky' className='text-orange-500'>
-                  Flaky ({statusCounts.flaky})
-                </TabsTrigger>
-                <TabsTrigger value='passed' className='text-green-500'>
-                  Passed ({statusCounts.passed})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {/* Mobile: compact select for small screens */}
+            <div className='sm:hidden w-full'>
+              <label className='sr-only' htmlFor='tab-select'>
+                Select results tab
+              </label>
+              <select
+                id='tab-select'
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value)}
+                className='w-full rounded-md border px-3 py-2 text-sm bg-background text-foreground'
+              >
+                <option value='all'>All ({totalTests})</option>
+                <option value='failed'>Failed ({statusCounts.failed})</option>
+                <option value='flaky'>Flaky ({statusCounts.flaky})</option>
+                <option value='passed'>Passed ({statusCounts.passed})</option>
+              </select>
+            </div>
+
+            {/* Desktop: tab list with nowrap & horizontal scrolling if needed */}
+            <div className='hidden sm:block'>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className='flex gap-2 overflow-x-auto max-w-full'>
+                  <TabsTrigger value='all' className='whitespace-nowrap px-3'>
+                    All ({totalTests})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='failed'
+                    className='text-destructive whitespace-nowrap px-3'
+                  >
+                    Failed ({statusCounts.failed})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='flaky'
+                    className='text-orange-500 whitespace-nowrap px-3'
+                  >
+                    Flaky ({statusCounts.flaky})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='passed'
+                    className='text-green-500 whitespace-nowrap px-3'
+                  >
+                    Passed ({statusCounts.passed})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

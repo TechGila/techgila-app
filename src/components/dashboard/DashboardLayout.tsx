@@ -27,7 +27,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  Zap,
   LayoutDashboard,
   ListOrdered,
   TestTube2,
@@ -53,16 +52,19 @@ const navItems = [
 ];
 
 function AppSidebar() {
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+  const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
 
+  const handleNavClick = () => {
+    // On mobile, close the sidebar sheet after navigation
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
-    <Sidebar
-      className='border-r border-border/50 bg-sidebar'
-      collapsible='icon'
-    >
-      <div className='flex h-16 items-center gap-3 px-4 border-b border-border/50'>
+    <Sidebar className='border-r border-border/50 bg-sidebar'>
+      <div className='flex h-16 items-center gap-3 border-b border-border/50'>
         <Logo />
       </div>
       <SidebarContent className='pt-4'>
@@ -83,9 +85,10 @@ function AppSidebar() {
                       end={item.url === "/dashboard"}
                       className='flex items-center gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md transition-colors'
                       activeClassName='bg-sidebar-accent text-sidebar-accent-foreground'
+                      onClick={handleNavClick}
                     >
                       <item.icon className='h-5 w-5 shrink-0' />
-                      {!collapsed && <span>{item.title}</span>}
+                      <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -130,12 +133,12 @@ export default function DashboardLayout() {
   };
 
   return (
-    <SidebarProvider>
-      <div className='min-h-screen flex w-full bg-background'>
+    <SidebarProvider defaultOpen={true}>
+      <div className='min-h-screen flex w-full bg-background overflow-hidden'>
         <AppSidebar />
-        <div className='flex-1 flex flex-col'>
+        <div className='flex-1 flex flex-col min-w-0'>
           {/* Header */}
-          <header className='h-16 border-b border-border/50 flex items-center justify-between px-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
+          <header className='h-16 border-b border-border/50 flex items-center justify-between px-4 sm:px-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
             <div className='flex items-center gap-4'>
               <SidebarTrigger className='text-muted-foreground hover:text-foreground'>
                 <Menu className='h-5 w-5' />
@@ -204,7 +207,7 @@ export default function DashboardLayout() {
           </header>
 
           {/* Main Content */}
-          <main className='flex-1 p-6 overflow-auto'>
+          <main className='flex-1 p-4 sm:p-6 overflow-y-auto overflow-x-hidden'>
             <Outlet />
           </main>
         </div>

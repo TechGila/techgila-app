@@ -9,8 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+// Note: ScrollArea removed in favor of native scroll containers for reliability
 import {
   Sparkles,
   Send,
@@ -354,7 +354,7 @@ export default function AIInsights() {
       {/* Main Content Grid */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         {/* AI Chat */}
-        <Card className='flex flex-col h-[60vh] sm:h-[600px]'>
+        <Card className='flex flex-col h-[60vh] sm:h-[600px] overflow-y-scroll'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
               <Bot className='h-5 w-5 text-primary' />
@@ -366,8 +366,8 @@ export default function AIInsights() {
           </CardHeader>
           <CardContent className='flex-1 flex flex-col'>
             {/* Messages */}
-            <ScrollArea className='flex-1 pr-4'>
-              <div className='space-y-4 pb-24 sm:pb-0'>
+            <div className='flex-1 pr-4 min-h-0 h-full overflow-auto'>
+              <div className='space-y-4 pb-24 sm:pb-0 min-h-0 flex flex-col'>
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -387,7 +387,7 @@ export default function AIInsights() {
                           : "bg-muted"
                       }`}
                     >
-                      <p className='text-sm whitespace-pre-wrap'>
+                      <p className='text-sm whitespace-pre-wrap break-words'>
                         {message.content}
                       </p>
                       {message.role === "assistant" && (
@@ -456,7 +456,7 @@ export default function AIInsights() {
                         variant='outline'
                         size='sm'
                         onClick={() => handleQuestionClick(question)}
-                        className='text-xs whitespace-nowrap'
+                        className='text-xs whitespace-normal'
                       >
                         <Lightbulb className='h-3 w-3 mr-1' />
                         {question}
@@ -467,10 +467,10 @@ export default function AIInsights() {
 
                 <div ref={messagesEndRef} />
               </div>
-            </ScrollArea>
+            </div>
 
             {/* Input */}
-            <div className='flex gap-2 sticky bottom-0 z-10 bg-background pt-2 pb-2 sm:pt-0 sm:pb-0'>
+            <div className='flex gap-2 flex-wrap justify-center sticky bottom-0 z-10 bg-background pt-2 pb-2 sm:pt-0 sm:pb-0'>
               <Input
                 placeholder='Ask about your builds...'
                 value={inputValue}
@@ -490,7 +490,7 @@ export default function AIInsights() {
         </Card>
 
         {/* Insights Feed */}
-        <Card className='flex flex-col h-[60vh] sm:h-[600px]'>
+        <Card className='flex flex-col h-[60vh] sm:h-[600px] overflow-hidden'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
               <Lightbulb className='h-5 w-5 text-orange-500' />
@@ -501,7 +501,7 @@ export default function AIInsights() {
             </CardDescription>
           </CardHeader>
           <CardContent className='flex-1 overflow-hidden'>
-            <ScrollArea className='h-full pr-4'>
+            <div className='h-full pr-4 overflow-auto'>
               <div className='space-y-4 pb-4'>
                 {insights.map((insight) => {
                   const Icon = insight.icon;
@@ -511,7 +511,7 @@ export default function AIInsights() {
                       className='group p-4 rounded-lg border border-border hover:border-primary/30 hover:bg-muted/30 transition-all cursor-pointer'
                       onClick={() => handleInsightAction(insight)}
                     >
-                      <div className='flex items-start gap-3'>
+                      <div className='flex flex-col md:flex-row items-start gap-3'>
                         <div
                           className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                             insight.impact === "high"
@@ -565,7 +565,7 @@ export default function AIInsights() {
                   );
                 })}
               </div>
-            </ScrollArea>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -594,7 +594,7 @@ export default function AIInsights() {
                 maintain your excellent coverage metrics.
               </p>
             </div>
-            <div className='flex gap-2'>
+            <div className='flex flex-wrap justify-center gap-2'>
               <Button variant='outline'>
                 <GitBranch className='h-4 w-4 mr-2' />
                 View Branches

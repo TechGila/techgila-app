@@ -42,7 +42,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// Replaced ScrollArea with native div (manual scroll regions)
 
 // Demo queue data
 const initialQueueData = [
@@ -503,7 +503,7 @@ export default function BuildQueue() {
 
           {/* Mobile list (stacked cards) */}
           <div className='block sm:hidden'>
-            <ScrollArea className='space-y-3 max-h-[60vh] overflow-auto'>
+            <div className='space-y-3 max-h-[60vh] overflow-auto'>
               {filteredQueue.length === 0 ? (
                 <div className='text-center py-6 text-muted-foreground'>
                   No builds in queue matching your criteria.
@@ -610,7 +610,7 @@ export default function BuildQueue() {
                   </Card>
                 ))
               )}
-            </ScrollArea>
+            </div>
           </div>
 
           {/* Queue Table (desktop) */}

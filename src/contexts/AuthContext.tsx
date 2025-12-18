@@ -120,6 +120,7 @@ interface AuthContextType {
   logout: () => void;
   updateUser: (user: User) => void;
   refreshUser: () => Promise<void>;
+  // No development-only auth helpers exposed in production.
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -160,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback((token: string, userData: User) => {
     setAuthToken(token);
     setUser(userData);
+    setIsDevAuthActive(false);
   }, []);
 
   const completeOAuthLogin = useCallback(async (token: string) => {
