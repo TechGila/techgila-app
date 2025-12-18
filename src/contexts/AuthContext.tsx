@@ -161,7 +161,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback((token: string, userData: User) => {
     setAuthToken(token);
     setUser(userData);
-    setIsDevAuthActive(false);
   }, []);
 
   const completeOAuthLogin = useCallback(async (token: string) => {

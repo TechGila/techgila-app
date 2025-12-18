@@ -470,7 +470,7 @@ export default function AIInsights() {
             </div>
 
             {/* Input */}
-            <div className='flex gap-2 flex-wrap justify-center sticky bottom-0 z-10 bg-background pt-2 pb-2 sm:pt-0 sm:pb-0'>
+            <div className='flex gap-2 flex-col md:flex-row justify-center sticky bottom-0 z-10 bg-background pt-2 pb-2 sm:pt-0 sm:pb-0'>
               <Input
                 placeholder='Ask about your builds...'
                 value={inputValue}
