@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAutoRefresh } from "@/contexts/AutoRefreshContext";
 import {
   Card,
   CardContent,
@@ -170,19 +171,22 @@ export default function Overview() {
   const [passRate, setPassRate] = useState(94.7);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Simulate live updates
+  // Simulate live updates (respect auto-refresh settings)
+  const { enabled: autoRefreshEnabled, intervalSeconds } = useAutoRefresh();
+
   useEffect(() => {
+    if (!autoRefreshEnabled) return;
     const interval = setInterval(() => {
       setTotalBuilds((prev) => prev + Math.floor(Math.random() * 3));
       setPassRate((prev) =>
         Math.min(99, Math.max(85, prev + (Math.random() - 0.5) * 0.5))
       );
-    }, 5000);
+    }, Math.max(1000, intervalSeconds * 1000));
 
     return () => clearInterval(interval);
-  }, []);
+  }, [autoRefreshEnabled, intervalSeconds]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     setBuildStats(generateBuildStats());
 
@@ -192,8 +196,28 @@ export default function Overview() {
         title: "Data refreshed",
         description: "Dashboard statistics have been updated.",
       });
+      try {
+        window.dispatchEvent(
+          new CustomEvent("notification:add", {
+            detail: {
+              title: "Dashboard refreshed",
+              description: "Overview data updated",
+            },
+          })
+        );
+      } catch (e) {
+        console.warn("notification dispatch failed", e);
+      }
     }, 1000);
-  };
+  }, [toast]);
+
+  // listen for global refresh
+  useEffect(() => {
+    const onRefresh = () => handleRefresh();
+    window.addEventListener("global:refresh", onRefresh as EventListener);
+    return () =>
+      window.removeEventListener("global:refresh", onRefresh as EventListener);
+  }, [handleRefresh]);
 
   const handleRetryBuild = (buildId: string) => {
     setRecentBuilds((prev) =>
@@ -212,21 +236,46 @@ export default function Overview() {
 
     const [next, ...rest] = queuedBuilds;
     setQueuedBuilds(rest);
-    setRecentBuilds((prev) => [
-      {
-        id: `B-${Date.now()}`,
-        name: next.name,
-        status: "running",
-        duration: "0s",
-        time: "Just now",
-        author: "You",
-      },
-      ...prev.slice(0, 4),
-    ]);
+    const newBuild = {
+      id: `B-${Date.now()}`,
+      name: next.name,
+      status: "running",
+      duration: "0s",
+      time: "Just now",
+      author: "You",
+    };
+    setRecentBuilds((prev) => [newBuild, ...prev.slice(0, 4)]);
     toast({
       title: "Build started",
       description: `${next.name} is now running.`,
     });
+
+    // simulate completion
+    setTimeout(() => {
+      setRecentBuilds((prev) =>
+        prev.map((b) =>
+          b.id === newBuild.id
+            ? { ...b, status: "passed", duration: "2m 12s", time: "Just now" }
+            : b
+        )
+      );
+      try {
+        window.dispatchEvent(
+          new CustomEvent("notification:add", {
+            detail: {
+              title: "Build completed",
+              description: `${next.name} finished successfully.`,
+            },
+          })
+        );
+      } catch (e) {
+        console.warn("notification dispatch failed", e);
+      }
+      toast({
+        title: "Build completed",
+        description: `${next.name} finished successfully.`,
+      });
+    }, 4000);
   };
 
   const getPriorityColor = (priority: string) => {

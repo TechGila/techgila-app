@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "@/contexts/AutoRefreshContext";
 import {
   Card,
   CardContent,
@@ -41,6 +42,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Demo queue data
 const initialQueueData = [
@@ -152,9 +154,11 @@ export default function BuildQueue() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [currentlyRunning, setCurrentlyRunning] = useState<string | null>(null);
 
-  // Simulate running build progress
+  // Simulate running build progress (respects auto-refresh setting)
+  const { enabled: autoRefreshEnabled, intervalSeconds } = useAutoRefresh();
+
   useEffect(() => {
-    if (isPaused || queueData.length === 0) return;
+    if (isPaused || queueData.length === 0 || !autoRefreshEnabled) return;
 
     const runNextBuild = () => {
       if (queueData.length > 0 && !currentlyRunning) {
@@ -171,13 +175,36 @@ export default function BuildQueue() {
             title: "Build completed",
             description: `${nextBuild.branch} finished successfully.`,
           });
-        }, 5000);
+          // Add a global notification as well
+          try {
+            window.dispatchEvent(
+              new CustomEvent("notification:add", {
+                detail: {
+                  title: "Build completed",
+                  description: `${nextBuild.branch} finished successfully.`,
+                },
+              })
+            );
+          } catch (e) {
+            console.warn("notification dispatch failed", e);
+          }
+        }, 4000);
       }
     };
 
-    const interval = setInterval(runNextBuild, 8000);
+    const interval = setInterval(
+      runNextBuild,
+      Math.max(1000, intervalSeconds * 1000)
+    );
     return () => clearInterval(interval);
-  }, [isPaused, queueData, currentlyRunning, toast]);
+  }, [
+    isPaused,
+    queueData,
+    currentlyRunning,
+    toast,
+    autoRefreshEnabled,
+    intervalSeconds,
+  ]);
 
   const getPriorityBadge = (priority: string) => {
     const styles: Record<string, string> = {
@@ -257,25 +284,53 @@ export default function BuildQueue() {
     });
   };
 
-  const handleRunNow = (id: string) => {
-    const item = queueData.find((q) => q.id === id);
-    if (!item) return;
+  const handleRunNow = useCallback(
+    (id: string) => {
+      const item = queueData.find((q) => q.id === id);
+      if (!item) return;
 
-    setCurrentlyRunning(id);
-    toast({
-      title: "Build started",
-      description: `${item.branch} is now running.`,
-    });
-
-    setTimeout(() => {
-      setQueueData((prev) => prev.filter((q) => q.id !== id));
-      setCurrentlyRunning(null);
+      setCurrentlyRunning(id);
       toast({
-        title: "Build completed",
-        description: `${item.branch} finished successfully.`,
+        title: "Build started",
+        description: `${item.branch} is now running.`,
       });
-    }, 3000);
-  };
+
+      setTimeout(() => {
+        setQueueData((prev) => prev.filter((q) => q.id !== id));
+        setCurrentlyRunning(null);
+        toast({
+          title: "Build completed",
+          description: `${item.branch} finished successfully.`,
+        });
+        try {
+          window.dispatchEvent(
+            new CustomEvent("notification:add", {
+              detail: {
+                title: "Build completed",
+                description: `${item.branch} finished successfully.`,
+              },
+            })
+          );
+        } catch (e) {
+          console.warn("notification dispatch failed", e);
+        }
+      }, 3000);
+    },
+    [queueData, toast]
+  );
+
+  // Listen for global run-next shortcut (placed after handler to avoid "used before declaration")
+  useEffect(() => {
+    const handler = () => {
+      if (queueData.length > 0 && !currentlyRunning && !isPaused) {
+        const next = queueData[0];
+        handleRunNow(next.id);
+      }
+    };
+    window.addEventListener("global:run-next", handler as EventListener);
+    return () =>
+      window.removeEventListener("global:run-next", handler as EventListener);
+  }, [handleRunNow, queueData, currentlyRunning, isPaused]);
 
   const totalEstTime = queueData.reduce((acc, item) => {
     const mins = parseInt(item.estimatedTime.split("m")[0]) || 0;
@@ -323,6 +378,50 @@ export default function BuildQueue() {
               }`}
             />
             Re-prioritize
+          </Button>
+          <Button
+            variant='outline'
+            onClick={() => {
+              const csv = [
+                [
+                  "id",
+                  "branch",
+                  "author",
+                  "priority",
+                  "aiScore",
+                  "est_time",
+                  "tests",
+                ],
+                ...queueData.map((q) => [
+                  q.id,
+                  q.branch,
+                  q.author,
+                  q.priority,
+                  String(q.aiScore),
+                  q.estimatedTime,
+                  String(q.tests),
+                ]),
+              ]
+                .map((r) =>
+                  r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")
+                )
+                .join("\n");
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `build-queue-${Date.now()}.csv`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              toast({
+                title: "Export started",
+                description: "Downloading queue CSV.",
+              });
+            }}
+          >
+            Export
           </Button>
         </div>
       </div>
@@ -402,8 +501,120 @@ export default function BuildQueue() {
             </Select>
           </div>
 
-          {/* Queue Table */}
-          <div className='rounded-lg border border-border overflow-hidden'>
+          {/* Mobile list (stacked cards) */}
+          <div className='block sm:hidden'>
+            <ScrollArea className='space-y-3 max-h-[60vh] overflow-auto'>
+              {filteredQueue.length === 0 ? (
+                <div className='text-center py-6 text-muted-foreground'>
+                  No builds in queue matching your criteria.
+                </div>
+              ) : (
+                filteredQueue.map((item) => (
+                  <Card
+                    key={item.id}
+                    className={`${
+                      currentlyRunning === item.id ? "bg-primary/10" : ""
+                    }`}
+                  >
+                    <CardContent className='p-4'>
+                      <div className='flex items-start justify-between gap-4'>
+                        <div className='flex-1 min-w-0'>
+                          <div className='flex items-center gap-3'>
+                            <div className='text-lg font-bold text-primary w-8'>
+                              {item.position}
+                            </div>
+                            <div className='min-w-0'>
+                              <p className='font-medium text-foreground truncate'>
+                                {item.branch}
+                              </p>
+                              <p className='text-xs text-muted-foreground truncate'>
+                                {item.triggeredAt} • {item.author}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className='mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground'>
+                            <div className='flex items-center gap-2'>
+                              <Clock className='h-4 w-4' />
+                              <span>{item.estimatedTime}</span>
+                            </div>
+                            <div className='flex items-center gap-2'>
+                              <Sparkles className='h-4 w-4' />
+                              <span
+                                className={`font-semibold ${getAIScoreColor(
+                                  item.aiScore
+                                )}`}
+                              >
+                                {item.aiScore}
+                              </span>
+                            </div>
+                            <div className='flex items-center gap-2'>
+                              <span className='text-foreground'>
+                                {item.tests} tests
+                              </span>
+                            </div>
+                            <div>
+                              <Badge
+                                variant='outline'
+                                className={getPriorityBadge(item.priority)}
+                              >
+                                {item.priority}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className='flex flex-col items-end gap-2'>
+                          <div className='flex items-center gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='h-8 w-8'
+                              onClick={() => handleMoveUp(item.id)}
+                              disabled={item.position === 1}
+                            >
+                              <ChevronUp className='h-4 w-4' />
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='h-8 w-8'
+                              onClick={() => handleMoveDown(item.id)}
+                              disabled={item.position === queueData.length}
+                            >
+                              <ChevronDown className='h-4 w-4' />
+                            </Button>
+                          </div>
+                          <div className='flex items-center gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='h-8 w-8 text-green-500 hover:text-green-600'
+                              onClick={() => handleRunNow(item.id)}
+                              disabled={currentlyRunning !== null}
+                            >
+                              <Play className='h-4 w-4' />
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='h-8 w-8 text-destructive hover:text-destructive'
+                              onClick={() => handleRemove(item.id)}
+                            >
+                              <Trash2 className='h-4 w-4' />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </ScrollArea>
+          </div>
+
+          {/* Queue Table (desktop) */}
+          <div className='hidden sm:block rounded-lg border border-border overflow-hidden'>
             <Table>
               <TableHeader>
                 <TableRow className='bg-muted/50'>

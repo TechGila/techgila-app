@@ -218,6 +218,22 @@ export default function AIInsights() {
 
       setMessages((prev) => [...prev, assistantMessage]);
       setIsTyping(false);
+
+      // If assistant provides a predictive or actionable response, add a notification
+      if (responseText && responseText.length > 50) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent("notification:add", {
+              detail: {
+                title: "AI Insight",
+                description: responseText.split("\n")[0],
+              },
+            })
+          );
+        } catch (e) {
+          console.warn("notification dispatch failed", e);
+        }
+      }
     }, 2000);
   };
 
@@ -239,6 +255,18 @@ export default function AIInsights() {
         title: "Insights refreshed",
         description: "AI has analyzed the latest build data.",
       });
+      try {
+        window.dispatchEvent(
+          new CustomEvent("notification:add", {
+            detail: {
+              title: "AI analysis ready",
+              description: "New insights available",
+            },
+          })
+        );
+      } catch (e) {
+        console.warn("notification dispatch failed", e);
+      }
     }, 1500);
   };
 
@@ -326,7 +354,7 @@ export default function AIInsights() {
       {/* Main Content Grid */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         {/* AI Chat */}
-        <Card className='flex flex-col h-[600px]'>
+        <Card className='flex flex-col h-[60vh] sm:h-[600px]'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
               <Bot className='h-5 w-5 text-primary' />
@@ -339,11 +367,11 @@ export default function AIInsights() {
           <CardContent className='flex-1 flex flex-col'>
             {/* Messages */}
             <ScrollArea className='flex-1 pr-4'>
-              <div className='space-y-4'>
+              <div className='space-y-4 pb-24 sm:pb-0'>
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex gap-3 ${
+                    className={`flex gap-3 min-w-0 ${
                       message.role === "user" ? "justify-end" : ""
                     }`}
                   >
@@ -353,7 +381,7 @@ export default function AIInsights() {
                       </div>
                     )}
                     <div
-                      className={`max-w-[80%] rounded-lg p-3 ${
+                      className={`max-w-[78%] sm:max-w-[80%] min-w-0 break-words rounded-lg p-3 ${
                         message.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted"
@@ -418,28 +446,31 @@ export default function AIInsights() {
                     </div>
                   </div>
                 )}
+
+                {/* Suggested Questions (moved inside scroll area so they scroll with messages) */}
+                <div className='flex gap-2 mt-4 overflow-x-auto pb-2 pr-2'>
+                  <div className='flex flex-wrap gap-2'>
+                    {suggestedQuestions.map((question, index) => (
+                      <Button
+                        key={index}
+                        variant='outline'
+                        size='sm'
+                        onClick={() => handleQuestionClick(question)}
+                        className='text-xs whitespace-nowrap'
+                      >
+                        <Lightbulb className='h-3 w-3 mr-1' />
+                        {question}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 
-            {/* Suggested Questions */}
-            <div className='flex flex-wrap gap-2 my-4'>
-              {suggestedQuestions.map((question, index) => (
-                <Button
-                  key={index}
-                  variant='outline'
-                  size='sm'
-                  onClick={() => handleQuestionClick(question)}
-                  className='text-xs'
-                >
-                  <Lightbulb className='h-3 w-3 mr-1' />
-                  {question}
-                </Button>
-              ))}
-            </div>
-
             {/* Input */}
-            <div className='flex gap-2'>
+            <div className='flex gap-2 sticky bottom-0 z-10 bg-background pt-2 pb-2 sm:pt-0 sm:pb-0'>
               <Input
                 placeholder='Ask about your builds...'
                 value={inputValue}
@@ -459,7 +490,7 @@ export default function AIInsights() {
         </Card>
 
         {/* Insights Feed */}
-        <Card className='flex flex-col h-[600px]'>
+        <Card className='flex flex-col h-[60vh] sm:h-[600px]'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
               <Lightbulb className='h-5 w-5 text-orange-500' />
@@ -471,7 +502,7 @@ export default function AIInsights() {
           </CardHeader>
           <CardContent className='flex-1 overflow-hidden'>
             <ScrollArea className='h-full pr-4'>
-              <div className='space-y-4'>
+              <div className='space-y-4 pb-4'>
                 {insights.map((insight) => {
                   const Icon = insight.icon;
                   return (

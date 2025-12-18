@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -203,7 +203,7 @@ export default function TestResults() {
     );
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     setTimeout(() => {
       setTestData(generateTestData());
@@ -213,7 +213,7 @@ export default function TestResults() {
         description: "Latest test results have been loaded.",
       });
     }, 1500);
-  };
+  }, [toast]);
 
   const handleRerunFailed = () => {
     toast({
@@ -232,6 +232,18 @@ export default function TestResults() {
         title: "Re-run complete",
         description: "Some failed tests now pass.",
       });
+      try {
+        window.dispatchEvent(
+          new CustomEvent("notification:add", {
+            detail: {
+              title: "Tests re-run",
+              description: `${statusCounts.failed} tests re-run`,
+            },
+          })
+        );
+      } catch (e) {
+        console.warn("notification dispatch failed", e);
+      }
     }, 3000);
   };
 
@@ -240,7 +252,35 @@ export default function TestResults() {
       title: "Generating report",
       description: "Your test report will download shortly.",
     });
+
+    // simulate download
+    const csv = [
+      ["id", "name", "suite", "status", "duration", "coverage"],
+      ...testData
+        .slice(0, 200)
+        .map((t) => [t.id, t.name, t.suite, t.status, t.duration, t.coverage]),
+    ]
+      .map((r) => r.join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `test-results-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
+
+  // listen for global refresh event
+  useEffect(() => {
+    const onRefresh = () => handleRefresh();
+    window.addEventListener("global:refresh", onRefresh as EventListener);
+    return () =>
+      window.removeEventListener("global:refresh", onRefresh as EventListener);
+  }, [handleRefresh]);
 
   return (
     <div className='space-y-6'>
@@ -369,7 +409,7 @@ export default function TestResults() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='h-[250px]'>
+            <div className='h-48 sm:h-[250px]'>
               <ResponsiveContainer width='100%' height='100%'>
                 <BarChart data={trendData}>
                   <XAxis
@@ -422,7 +462,7 @@ export default function TestResults() {
             <CardDescription>Current test status breakdown</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='h-[250px]'>
+            <div className='h-48 sm:h-[250px]'>
               <ResponsiveContainer width='100%' height='100%'>
                 <PieChart>
                   <Pie
@@ -564,8 +604,101 @@ export default function TestResults() {
             </div>
           </div>
 
-          {/* Test Table */}
-          <div className='rounded-lg border border-border overflow-hidden'>
+          {/* Mobile list (accordion cards) */}
+          <div className='block sm:hidden'>
+            <div className='space-y-3'>
+              {filteredTests.length === 0 ? (
+                <div className='text-center py-6 text-muted-foreground'>
+                  No tests found.
+                </div>
+              ) : (
+                filteredTests.slice(0, 50).map((test) => (
+                  <Collapsible
+                    key={test.id}
+                    className='rounded-lg border border-border'
+                  >
+                    <div className='p-4 flex items-start justify-between gap-4'>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-center gap-3'>
+                          <div className='w-8'>
+                            {getStatusIcon(test.status)}
+                          </div>
+                          <div className='min-w-0'>
+                            <p className='font-medium text-foreground truncate'>
+                              {test.name}
+                            </p>
+                            <p className='text-xs text-muted-foreground truncate'>
+                              {test.suite} • {test.lastRun}
+                            </p>
+                          </div>
+                        </div>
+                        <div className='mt-3 flex items-center gap-3 text-sm text-muted-foreground flex-wrap'>
+                          <div className='flex items-center gap-2'>
+                            <Clock className='h-4 w-4' />
+                            <span>{test.duration}ms</span>
+                          </div>
+                          <div className='flex items-center gap-2'>
+                            <Progress
+                              value={test.coverage}
+                              className='w-24 h-2'
+                            />
+                            <span className='text-xs'>{test.coverage}%</span>
+                          </div>
+                          <div>
+                            <Badge
+                              variant='outline'
+                              className={getStatusBadge(test.status)}
+                            >
+                              {test.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-8 w-8'
+                          >
+                            {expandedTests.includes(test.id) ? (
+                              <ChevronDown className='h-4 w-4' />
+                            ) : (
+                              <ChevronRight className='h-4 w-4' />
+                            )}
+                          </Button>
+                        </CollapsibleTrigger>
+                      </div>
+                    </div>
+                    <CollapsibleContent className='p-4 pt-0 border-t border-border'>
+                      {test.errorMessage && (
+                        <div className='space-y-2'>
+                          <p className='text-sm font-medium text-destructive'>
+                            Error: {test.errorMessage}
+                          </p>
+                          <pre className='text-xs text-muted-foreground bg-muted p-2 rounded overflow-x-auto'>
+                            {test.stackTrace}
+                          </pre>
+                          <div className='flex gap-2'>
+                            <Button size='sm' variant='outline'>
+                              <Play className='h-3 w-3 mr-1' />
+                              Re-run Test
+                            </Button>
+                            <Button size='sm' variant='ghost'>
+                              View Details
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Test Table (desktop) */}
+          <div className='hidden sm:block rounded-lg border border-border overflow-hidden'>
             <Table>
               <TableHeader>
                 <TableRow className='bg-muted/50'>

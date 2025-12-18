@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Logo from "../Logo";
+import NotificationsButton from "@/components/NotificationsButton";
 
 const navItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
@@ -142,6 +143,10 @@ export default function DashboardLayout() {
               <h1 className='text-lg font-semibold text-foreground hidden sm:block'>
                 Dashboard
               </h1>
+              {/* Notifications & Auto-refresh */}
+              <div className='ml-4 flex items-center gap-2'>
+                <NotificationsButton />
+              </div>
             </div>
 
             <DropdownMenu>

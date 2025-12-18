@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Shield, BarChart3, Loader2 } from "lucide-react";
+import { Zap, Shield, BarChart3, Loader2, Check, X } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import Logo from "@/components/Logo";
@@ -68,6 +69,44 @@ export default function Auth() {
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState("");
+
+  // Password strength criteria derived from the current password input
+  const passwordCriteria = {
+    length: signUpPassword.length >= 8,
+    long: signUpPassword.length >= 12,
+    upper: /[A-Z]/.test(signUpPassword),
+    lower: /[a-z]/.test(signUpPassword),
+    number: /[0-9]/.test(signUpPassword),
+    special: /[^A-Za-z0-9]/.test(signUpPassword),
+  };
+
+  const passwordScore = [
+    passwordCriteria.length,
+    passwordCriteria.upper,
+    passwordCriteria.lower,
+    passwordCriteria.number,
+    passwordCriteria.special || passwordCriteria.long,
+  ].filter(Boolean).length;
+
+  const passwordStrength = (() => {
+    if (signUpPassword.length === 0)
+      return { label: "Empty", color: "bg-muted", value: 0 };
+    if (passwordScore <= 1)
+      return { label: "Very weak", color: "bg-destructive", value: 20 };
+    if (passwordScore === 2)
+      return { label: "Weak", color: "bg-orange-500", value: 40 };
+    if (passwordScore === 3)
+      return { label: "Fair", color: "bg-yellow-500", value: 60 };
+    if (passwordScore === 4)
+      return { label: "Good", color: "bg-green-400", value: 80 };
+    return { label: "Strong", color: "bg-green-500", value: 100 };
+  })();
+
+  const isPasswordValid =
+    passwordCriteria.length &&
+    passwordCriteria.upper &&
+    passwordCriteria.lower &&
+    passwordCriteria.number;
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,11 +240,12 @@ export default function Auth() {
       return;
     }
 
-    if (signUpPassword.length < 8) {
+    if (!isPasswordValid) {
       toast({
         variant: "destructive",
-        title: "Password too short",
-        description: "Password must be at least 8 characters.",
+        title: "Weak password",
+        description:
+          "Password must be at least 8 characters and include uppercase, lowercase, and a number.",
       });
       return;
     }
@@ -526,7 +566,84 @@ export default function Auth() {
                         onChange={(e) => setSignUpPassword(e.target.value)}
                         required
                         className='bg-muted/50'
+                        aria-describedby='password-strength'
                       />
+
+                      {/* Password strength meter and criteria */}
+                      <div id='password-strength' className='mt-2'>
+                        <div className='flex items-center justify-between text-xs text-muted-foreground mb-1'>
+                          <span>
+                            Password strength:{" "}
+                            <span className='font-medium text-foreground'>
+                              {passwordStrength.label}
+                            </span>
+                          </span>
+                          <span className='ml-2 text-xs text-muted-foreground'>
+                            {passwordScore}/5
+                          </span>
+                        </div>
+                        <Progress
+                          value={passwordStrength.value}
+                          className='h-2 rounded'
+                        />
+
+                        <div className='mt-2 grid grid-cols-2 gap-2 text-xs'>
+                          <div className='flex items-center gap-2'>
+                            {passwordCriteria.length ? (
+                              <Check className='h-4 w-4 text-green-500' />
+                            ) : (
+                              <X className='h-4 w-4 text-muted-foreground' />
+                            )}
+                            <span className='text-muted-foreground'>
+                              At least 8 characters
+                            </span>
+                          </div>
+
+                          <div className='flex items-center gap-2'>
+                            {passwordCriteria.upper ? (
+                              <Check className='h-4 w-4 text-green-500' />
+                            ) : (
+                              <X className='h-4 w-4 text-muted-foreground' />
+                            )}
+                            <span className='text-muted-foreground'>
+                              Uppercase letter
+                            </span>
+                          </div>
+
+                          <div className='flex items-center gap-2'>
+                            {passwordCriteria.lower ? (
+                              <Check className='h-4 w-4 text-green-500' />
+                            ) : (
+                              <X className='h-4 w-4 text-muted-foreground' />
+                            )}
+                            <span className='text-muted-foreground'>
+                              Lowercase letter
+                            </span>
+                          </div>
+
+                          <div className='flex items-center gap-2'>
+                            {passwordCriteria.number ? (
+                              <Check className='h-4 w-4 text-green-500' />
+                            ) : (
+                              <X className='h-4 w-4 text-muted-foreground' />
+                            )}
+                            <span className='text-muted-foreground'>
+                              Number
+                            </span>
+                          </div>
+
+                          <div className='col-span-2 flex items-center gap-2'>
+                            {passwordCriteria.special ? (
+                              <Check className='h-4 w-4 text-green-500' />
+                            ) : (
+                              <X className='h-4 w-4 text-muted-foreground' />
+                            )}
+                            <span className='text-muted-foreground'>
+                              Special character (optional)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className='space-y-2'>
                       <Label htmlFor='signup-confirm-password'>
@@ -547,7 +664,11 @@ export default function Auth() {
                     <Button
                       type='submit'
                       className='w-full'
-                      disabled={isLoading}
+                      disabled={
+                        isLoading ||
+                        !isPasswordValid ||
+                        signUpPassword !== signUpConfirmPassword
+                      }
                     >
                       {isLoading ? (
                         <>

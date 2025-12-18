@@ -17,23 +17,98 @@ function extractUserFromCurrentUserResponse(response: unknown): User | null {
   if (!response || typeof response !== "object") return null;
   const res = response as Record<string, unknown>;
 
+  // Response shapes can vary (data.user, data, user, or the raw user). Accept all.
   const data = res.data;
   const userCandidate =
     (data &&
       typeof data === "object" &&
       (data as Record<string, unknown>).user) ||
     data ||
-    res.user;
+    res.user ||
+    res;
 
   if (!userCandidate || typeof userCandidate !== "object") return null;
   const u = userCandidate as Record<string, unknown>;
-  if (typeof u.id !== "number") return null;
-  if (typeof u.email !== "string") return null;
-  if (typeof u.username !== "string") return null;
-  if (typeof u.first_name !== "string") return null;
-  if (typeof u.last_name !== "string") return null;
 
-  return u as unknown as User;
+  // Normalize ID (accept number or numeric string)
+  let id: number | null = null;
+  if (typeof u.id === "number") id = u.id;
+  else if (typeof u.id === "string" && /^\d+$/.test(u.id))
+    id = parseInt(u.id, 10);
+  else if (typeof u.user_id === "number") id = u.user_id;
+  if (id === null) return null;
+
+  // Username: prefer username, then login (GitHub), then fallback to name or generated
+  const username =
+    (typeof u.username === "string" && u.username) ||
+    (typeof u.login === "string" && u.login) ||
+    (typeof u.name === "string" && u.name.split(" ")[0]) ||
+    `user${id}`;
+
+  // Name: prefer first/last, otherwise split full name if present
+  let first_name = "";
+  let last_name = "";
+  if (typeof u.first_name === "string" || typeof u.last_name === "string") {
+    first_name = (u.first_name as string) || "";
+    last_name = (u.last_name as string) || "";
+  } else if (typeof u.name === "string") {
+    const parts = u.name.trim().split(/\s+/);
+    first_name = parts.shift() || "";
+    last_name = parts.join(" ") || "";
+  }
+
+  // Email: accept empty string if not provided (some providers omit email)
+  const email = typeof u.email === "string" ? u.email : "";
+
+  // Avatar: handle common provider fields
+  const avatar =
+    (typeof u.avatar === "string" && u.avatar) ||
+    (typeof u.avatar_url === "string" && u.avatar_url) ||
+    (typeof u.profile_photo_url === "string" && u.profile_photo_url) ||
+    null;
+
+  const email_verified_at =
+    typeof u.email_verified_at === "string" ? u.email_verified_at : null;
+  const current_plan =
+    typeof u.current_plan === "string" ? u.current_plan : null;
+
+  // Build sanitized user object matching our User type as closely as possible
+  const normalized: Partial<User> = {
+    id,
+    username,
+    first_name,
+    last_name,
+    email,
+    avatar,
+    email_verified_at,
+    current_plan,
+    created_at: typeof u.created_at === "string" ? u.created_at : undefined,
+    updated_at: typeof u.updated_at === "string" ? u.updated_at : undefined,
+  };
+
+  // Basic validation: id and username required
+  if (
+    typeof normalized.id !== "number" ||
+    typeof normalized.username !== "string"
+  ) {
+    return null;
+  }
+
+  // Ensure fields expected by our app are present (fill with defaults when missing)
+  const finalUser: User = {
+    id: normalized.id!,
+    username: normalized.username!,
+    first_name: normalized.first_name || "",
+    last_name: normalized.last_name || "",
+    email: normalized.email || "",
+    avatar: normalized.avatar ?? null,
+    email_verified_at: normalized.email_verified_at ?? null,
+    current_plan: normalized.current_plan ?? null,
+    created_at: normalized.created_at,
+    updated_at: normalized.updated_at,
+  };
+
+  return finalUser;
 }
 
 interface AuthContextType {
@@ -93,16 +168,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const response = await getCurrentUser();
+      // Helpful debug info when OAuth completion fails for a specific provider
+      console.debug("completeOAuthLogin: /user response:", response);
       const extractedUser = extractUserFromCurrentUserResponse(response);
       if (response.status === "success" && extractedUser) {
         setUser(extractedUser);
         return true;
       }
 
+      // If we can't parse a valid user, remove token and fail gracefully
       removeAuthToken();
       setUser(null);
       return false;
-    } catch {
+    } catch (err) {
+      console.debug("completeOAuthLogin: error while fetching /user", err);
       removeAuthToken();
       setUser(null);
       return false;
