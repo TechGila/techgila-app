@@ -365,10 +365,7 @@ export default function Auth() {
         <div className='w-full max-w-md'>
           {/* Mobile logo */}
           <div className='lg:hidden flex items-center gap-3 mb-8 justify-center'>
-            <div className='w-10 h-10 rounded-lg bg-primary flex items-center justify-center'>
-              <Zap className='w-6 h-6 text-primary-foreground' />
-            </div>
-            <span className='text-2xl font-bold text-foreground'>TechGila</span>
+            <Logo />
           </div>
 
           <Tabs
